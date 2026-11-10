@@ -52,6 +52,9 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;background:#f0f2f7;color:#1a1
 .section-header{color:#444;font-size:12px;font-weight:700;padding:8px 14px;border-radius:8px 8px 0 0;letter-spacing:.5px;background:#eef0f5;border-left:4px solid #9ca3af;display:flex;align-items:center;justify-content:space-between;gap:10px}
 .export-btn{background:rgba(255,255,255,.85);border:1px solid rgba(0,0,0,.15);border-radius:6px;padding:2px 10px;font-size:10.5px;font-weight:700;color:#333;cursor:pointer;letter-spacing:.3px;flex-shrink:0}
 .export-btn:hover{background:#fff;border-color:#888}
+.export-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 12px}
+.export-bar .export-btn{font-size:12px;padding:5px 14px}
+.export-bar-label{font-size:12px;color:#666;font-weight:700}
 .card h3{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .bg-store{border-left-color:#4b6bfb}.bg-ec{border-left-color:#8b5cf6}.bg-total{border-left-color:#374151}
 .bg-inv-store{border-left-color:#6b7280}.bg-inv-ec{border-left-color:#9ca3af}.bg-inv-total{border-left-color:#374151}
@@ -93,7 +96,7 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;background:#f0f2f7;color:#1a1
   <div class="sidebar">
     <div class="sidebar-brand">
       <h1>LYFT</h1>
-      <div class="s-updated">最終更新: 2026-11-09 12:31</div>
+      <div class="s-updated">最終更新: 2026-11-10 13:02</div>
     </div>
     <div class="gender-tabs">
       <div class="gtab active" data-gender="Total" onclick="setGender('Total')">Total</div>
@@ -247,6 +250,24 @@ function exportSection(btn){
   label=label.split('/').join('-').split('\\').join('-');
   downloadCSV(tableToCSV(table), `${label}_${currentContextLabel()}.csv`);
 }
+// 週次ビュー: 大項目（中分類売上／売上／在庫）ごとに、各表のCSVを表名の行で区切って1ファイルに縦に並べる
+// （各表の中身は表ごとのCSVと同一）
+const WEEKLY_EXPORT_GROUPS=[
+  ['中分類売上',['grp_store','grp_ec','grp_total']],
+  ['売上',['store','ec','total']],
+  ['在庫',['grp_inv_store','grp_inv_ec','grp_inv_total','inv_store','inv_ec','inv_total']],
+];
+function exportWeeklyGroup(name, keys){
+  const parts=[];
+  keys.forEach(k=>{
+    const blk=document.querySelector(`#sectionBlocks .section-block[data-sec="${k}"]`);
+    if(!blk) return;
+    const label=blk.querySelector('.section-header span').textContent.replace(/"/g,'""');
+    parts.push(`"${label}"\r\n`+tableToCSV(blk.querySelector('table')));
+  });
+  if(!parts.length){alert('エクスポート対象のテーブルが見つかりません');return;}
+  downloadCSV(parts.join('\r\n\r\n'), `${name}_${currentContextLabel()}.csv`);
+}
 
 let tChart, dChart;
 
@@ -301,12 +322,11 @@ function renderAll(){
 
   function makeTable(sec, colKeys, colLabels, colSubLabels){
     const sd=wd[sec.key];
-    const wrap=document.createElement('div'); wrap.className='section-block';
+    const wrap=document.createElement('div'); wrap.className='section-block'; wrap.dataset.sec=sec.key;
     const hdr=document.createElement('div');
     hdr.className=`section-header ${BG_CLS[sec.key]||BG_CLS[sec.key.replace('grp_','')]}`;
     const hdrLabel=document.createElement('span'); hdrLabel.textContent=sec.label;
-    const hdrBtn=document.createElement('button'); hdrBtn.className='export-btn'; hdrBtn.textContent='CSV'; hdrBtn.onclick=()=>exportSection(hdrBtn);
-    hdr.appendChild(hdrLabel); hdr.appendChild(hdrBtn);
+    hdr.appendChild(hdrLabel);   // 表ごとのCSVボタンは廃止（上部の大項目ボタンで出力）
     wrap.appendChild(hdr);
     const tbl=document.createElement('table'); tbl.className='section-table';
     const tr0=tbl.createTHead().insertRow();
@@ -333,6 +353,16 @@ function renderAll(){
     wrap.appendChild(tbl);
     return wrap;
   }
+
+  // 大項目ごとのCSV出力ボタン
+  const bar=document.createElement('div'); bar.className='export-bar';
+  const barLabel=document.createElement('span'); barLabel.className='export-bar-label'; barLabel.textContent='CSV出力:';
+  bar.appendChild(barLabel);
+  WEEKLY_EXPORT_GROUPS.forEach(([name,keys])=>{
+    const b=document.createElement('button'); b.className='export-btn'; b.textContent=`${name} CSV`;
+    b.onclick=()=>exportWeeklyGroup(name,keys); bar.appendChild(b);
+  });
+  container.appendChild(bar);
 
   // 中分類セクション（店舗売上の上）
   GRP_SECS.forEach(sec=>{
